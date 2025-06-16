@@ -15,7 +15,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/type
 //FHE Imports
 import {FHE, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
-contract Counter is BaseHook {
+contract FHEMarketOrder is BaseHook {
     using PoolIdLibrary for PoolKey;
 
     // NOTE: ---------------------------------------------------------
