@@ -14,7 +14,6 @@ import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
-import {Counter} from "../src/Counter.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
 import {SortTokens} from "./utils/SortTokens.sol";
@@ -24,13 +23,15 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {EasyPosm} from "./utils/EasyPosm.sol";
 import {Fixtures} from "./utils/Fixtures.sol";
 
+import {FHEMarketOrder} from "../src/FHEMarketOrder.sol";
+
 //FHE Imports
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {CoFheTest} from "@fhenixprotocol/cofhe-foundry-mocks/CoFheTest.sol";
 import {HybridFHERC20} from "../src/HybridFHERC20.sol";
 import {IFHERC20} from "../src/interface/IFHERC20.sol";
 
-contract CounterTest is Test, Fixtures {
+contract MarketOrderTest is Test, Fixtures {
     using EasyPosm for IPositionManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -39,7 +40,7 @@ contract CounterTest is Test, Fixtures {
     //test instance with useful utilities for testing FHE contracts locally
     CoFheTest CFT;
 
-    Counter hook;
+    FHEMarketOrder hook;
     PoolId poolId;
 
     HybridFHERC20 fheToken0;
@@ -88,8 +89,8 @@ contract CounterTest is Test, Fixtures {
             ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
         bytes memory constructorArgs = abi.encode(manager); //Add all the necessary constructor arguments from the hook
-        deployCodeTo("Counter.sol:Counter", constructorArgs, flags);
-        hook = Counter(flags);
+        deployCodeTo("FHEMarketOrder.sol:FHEMarketOrder", constructorArgs, flags);
+        hook = FHEMarketOrder(flags);
 
         vm.label(address(hook), "hook");
         vm.label(address(this), "test");
