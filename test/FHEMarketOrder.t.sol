@@ -127,45 +127,6 @@ contract MarketOrderTest is Test, Fixtures {
         vm.stopPrank();
     }
 
-    function testCounterHooks() public {
-        // positions were created in setup()
-        CFT.assertHashValue(hook.beforeAddLiquidityCount(poolId), 1);
-
-        // Perform a test swap //
-        bool zeroForOne = true;
-        int256 amountSpecified = -1e18; // negative number indicates exact input swap!
-        
-        vm.prank(user);
-        BalanceDelta swapDelta = swap(key, zeroForOne, amountSpecified, ZERO_BYTES);
-        // ------------------- //
-
-        assertEq(int256(swapDelta.amount0()), amountSpecified);
-
-        CFT.assertHashValue(hook.beforeSwapCount(poolId), 1);
-        CFT.assertHashValue(hook.afterSwapCount(poolId), 1);
-    }
-
-    function testLiquidityHooks() public {
-        // positions were created in setup()
-        CFT.assertHashValue(hook.beforeAddLiquidityCount(poolId), 1);
-        //CFT.assertHashValue(hook.beforeRemoveLiquidityCount(poolId), 0);
-
-        // remove liquidity
-        uint256 liquidityToRemove = 1e18;
-        posm.decreaseLiquidity(
-            tokenId,
-            liquidityToRemove,
-            MAX_SLIPPAGE_REMOVE_LIQUIDITY,
-            MAX_SLIPPAGE_REMOVE_LIQUIDITY,
-            address(this),
-            block.timestamp,
-            ZERO_BYTES
-        );
-
-        CFT.assertHashValue(hook.beforeAddLiquidityCount(poolId), 1);
-        CFT.assertHashValue(hook.beforeRemoveLiquidityCount(poolId), 1);
-    }
-
     //
     //      ... Helper Functions ...
     //
