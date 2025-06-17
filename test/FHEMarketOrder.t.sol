@@ -27,18 +27,15 @@ import {FHEMarketOrder} from "../src/FHEMarketOrder.sol";
 
 //FHE Imports
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import {CoFheTest} from "@fhenixprotocol/cofhe-foundry-mocks/CoFheTest.sol";
+import {CoFheTest} from "@fhenixprotocol/cofhe-mock-contracts/CoFheTest.sol";
 import {HybridFHERC20} from "../src/HybridFHERC20.sol";
 import {IFHERC20} from "../src/interface/IFHERC20.sol";
 
-contract MarketOrderTest is Test, Fixtures {
+contract MarketOrderTest is Test, Fixtures, CoFheTest {
     using EasyPosm for IPositionManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
-
-    //test instance with useful utilities for testing FHE contracts locally
-    CoFheTest CFT;
 
     FHEMarketOrder hook;
     PoolId poolId;
@@ -56,8 +53,8 @@ contract MarketOrderTest is Test, Fixtures {
     address private user = makeAddr("user");
 
     function setUp() public {
-        //initialise new CoFheTest instance with logging turned off
-        CFT = new CoFheTest(false);
+        //initialise new CoFheTest instance with verbose logging
+        //setLog(true);
 
         bytes memory token0Args = abi.encode("TOKEN0", "TOK0");
         deployCodeTo("HybridFHERC20.sol:HybridFHERC20", token0Args, address(123));
@@ -143,8 +140,8 @@ contract MarketOrderTest is Test, Fixtures {
         IFHERC20(token).mint(user, 2 ** 250);
         IFHERC20(token).mint(address(this), 2 ** 250);
 
-        //InEuint128 memory amount = CFT.createInEuint128(2 ** 120, address(this));
-        InEuint128 memory amountUser = CFT.createInEuint128(2 ** 120, user);
+        //InEuint128 memory amount = createInEuint128(2 ** 120, address(this));
+        InEuint128 memory amountUser = createInEuint128(2 ** 120, user);
 
         //IFHERC20(token).mintEncrypted(address(this), amount);
         IFHERC20(token).mintEncrypted(user, amountUser);
