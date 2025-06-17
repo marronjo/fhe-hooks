@@ -40,11 +40,11 @@ contract FHEMarketOrder is BaseHook {
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
+            beforeInitialize: true,
             afterInitialize: false,
-            beforeAddLiquidity: true,
+            beforeAddLiquidity: false,
             afterAddLiquidity: false,
-            beforeRemoveLiquidity: true,
+            beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
             beforeSwap: true,
             afterSwap: true,
@@ -61,16 +61,19 @@ contract FHEMarketOrder is BaseHook {
     // NOTE: see IHooks.sol for function documentation
     // -----------------------------------------------
 
+    function _beforeInitialize(address sender, PoolKey calldata key, uint160 sqrtPriceX96)
+        internal
+        override
+        returns(bytes4)
+    {
+        return (BaseHook.beforeInitialize.selector);
+    }
+
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
         internal
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        euint128 current = beforeSwapCount[key.toId()];
-        beforeSwapCount[key.toId()] = current.add(FHE.asEuint128(1)); //add encrypted 1 to beforeSwapCount
-
-        FHE.allowThis(beforeSwapCount[key.toId()]); //allow this contract to access and use this new value
-
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -79,39 +82,6 @@ contract FHEMarketOrder is BaseHook {
         override
         returns (bytes4, int128)
     {
-        euint128 current = afterSwapCount[key.toId()];
-        afterSwapCount[key.toId()] = current.add(FHE.asEuint128(1)); //add encrypted 1 to afterSwapCount
-
-        FHE.allowThis(afterSwapCount[key.toId()]); //allow this contract to access and use this new value
-
         return (BaseHook.afterSwap.selector, 0);
-    }
-
-    function _beforeAddLiquidity(
-        address,
-        PoolKey calldata key,
-        ModifyLiquidityParams calldata,
-        bytes calldata
-    ) internal override returns (bytes4) {
-        euint128 current = beforeAddLiquidityCount[key.toId()];
-        beforeAddLiquidityCount[key.toId()] = current.add(FHE.asEuint128(1)); //add encrypted 1 to beforeAddLiquidityCount
-
-        FHE.allowThis(beforeAddLiquidityCount[key.toId()]); //allow this contract to access and use this new value
-
-        return BaseHook.beforeAddLiquidity.selector;
-    }
-
-    function _beforeRemoveLiquidity(
-        address,
-        PoolKey calldata key,
-        ModifyLiquidityParams calldata,
-        bytes calldata
-    ) internal override returns (bytes4) {
-        euint128 current = beforeRemoveLiquidityCount[key.toId()];
-        beforeRemoveLiquidityCount[key.toId()] = current.add(FHE.asEuint128(1)); //add encrypted 1 to beforeRemoveLiquidityCount
-
-        FHE.allowThis(beforeRemoveLiquidityCount[key.toId()]); //allow this contract to access and use this new value
-
-        return BaseHook.beforeRemoveLiquidity.selector;
     }
 }
