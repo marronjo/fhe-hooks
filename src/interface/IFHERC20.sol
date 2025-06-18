@@ -9,7 +9,7 @@ import {InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 interface IFHERC20 is IERC20 {
     // -------- Verify Function --------
-    function isFherc20() external returns(bool);
+    function isFherc20() external pure returns(bool);
 
     // -------- Public Mint / Burn Functions --------
     function mint(address user, uint256 amount) external;

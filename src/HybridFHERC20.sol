@@ -32,7 +32,7 @@ contract HybridFHERC20 is ERC20, IFHERC20 {
     }
 
     // -------- Verify Function --------
-    function isFherc20() external returns(bool) {
+    function isFherc20() external pure returns(bool) {
         return true;
     }
 

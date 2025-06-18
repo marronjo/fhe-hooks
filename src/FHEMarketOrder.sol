@@ -17,12 +17,12 @@ import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 
 //FHE Imports
-import {FHE, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {FHE, InEuint128, euint128, InEbool, ebool} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {IFHERC20} from "./interface/IFHERC20.sol";
 
 contract FHEMarketOrder is BaseHook {
 
-    error FHEMarketOrder__InvalidFHER20Token(address token);
+    error FHEMarketOrder__InvalidFHERC20Token(address token);
 
     using PoolIdLibrary for PoolKey;
     using EpochLibrary for Epoch;
@@ -37,18 +37,22 @@ contract FHEMarketOrder is BaseHook {
     // ---------------------------------------------------------------
     using FHE for uint256;
 
-    // NOTE: ---------------------------------------------------------
-    // state variables should typically be unique to a pool
-    // a single hook contract should be able to service multiple pools
-    // ---------------------------------------------------------------
+    struct EpochInfo {
+        euint128 totalLiquidity;
+        mapping(address => euint128) liquidity;
+    }
 
-    mapping(PoolId => euint128 count) public beforeSwapCount;
-    mapping(PoolId => euint128 count) public afterSwapCount;
+    Epoch private zeroForOneEpoch = Epoch.wrap(1);
+    Epoch private oneForZeroEpoch = Epoch.wrap(1);
 
-    mapping(PoolId => euint128 count) public beforeAddLiquidityCount;
-    mapping(PoolId => euint128 count) public beforeRemoveLiquidityCount;
+    mapping(Epoch => EpochInfo) zeroForOneEpochs;
+    mapping(Epoch => EpochInfo) oneForZeroEpochs;
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
+    euint128 immutable ZERO;
+
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
+        ZERO = FHE.asEuint128(0);
+    }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
@@ -74,6 +78,7 @@ contract FHEMarketOrder is BaseHook {
     // -----------------------------------------------
 
     function _beforeInitialize(address, PoolKey calldata key, uint160)
+        pure
         internal
         override
         returns(bytes4)
@@ -83,14 +88,55 @@ contract FHEMarketOrder is BaseHook {
         return (BaseHook.beforeInitialize.selector);
     }
 
-    function verifyFHERC20Token(address token) private {
+    function verifyFHERC20Token(address token) private pure {
         try IFHERC20(token).isFherc20() returns(bool isFherc20) {
             if(!isFherc20){
-                revert FHEMarketOrder__InvalidFHER20Token(token);
+                revert FHEMarketOrder__InvalidFHERC20Token(token);
             }
         } catch {
-            revert FHEMarketOrder__InvalidFHER20Token(token);
+            revert FHEMarketOrder__InvalidFHERC20Token(token);
         }
+    }
+
+    function placeMarketOrder(PoolKey calldata key, InEbool calldata zeroForOne, InEuint128 calldata liquidity) external {
+        ebool _zeroForOne = FHE.asEbool(zeroForOne);
+        euint128 _liquidity = FHE.asEuint128(liquidity);
+
+        euint128 zeroForOneLiquidity = zeroForOneEpochs[zeroForOneEpoch].totalLiquidity;
+        euint128 oneForZeroLiquidity = oneForZeroEpochs[oneForZeroEpoch].totalLiquidity;
+
+        euint128 zeroForOneUser = zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender];
+        euint128 oneForZeroUser = oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender];
+
+        // ----- Store Market Orders -----
+    
+        // - user liquidity
+        zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender] = FHE.select(_zeroForOne, FHE.add(zeroForOneUser, _liquidity), zeroForOneUser);
+        oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender] = FHE.select(_zeroForOne, oneForZeroUser, FHE.add(oneForZeroUser, _liquidity)); 
+
+        // - add contract allowances
+        FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender]);
+        FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender]);
+        
+        // - add user allowances
+        FHE.allow(zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender], msg.sender);
+        FHE.allow(oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender], msg.sender);
+        
+        // - total liquidity
+        zeroForOneEpochs[zeroForOneEpoch].totalLiquidity = FHE.select(_zeroForOne, FHE.add(zeroForOneLiquidity, _liquidity), zeroForOneLiquidity);
+        oneForZeroEpochs[oneForZeroEpoch].totalLiquidity = FHE.select(_zeroForOne, oneForZeroLiquidity, FHE.add(oneForZeroLiquidity, _liquidity));
+
+        // - add contract allowances
+        // NOTE: do not allow sender to access total liquidity of current epoch
+        FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].totalLiquidity);
+        FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].totalLiquidity);
+
+        euint128 token0Amount = FHE.select(_zeroForOne, _liquidity, ZERO);
+        euint128 token1Amount = FHE.select(_zeroForOne, ZERO, _liquidity);
+
+        // "send" both tokens, one amount is encrypted zero to obscure trade direction
+        IFHERC20(Currency.unwrap(key.currency0)).transferFromEncrypted(msg.sender, address(this), token0Amount);
+        IFHERC20(Currency.unwrap(key.currency1)).transferFromEncrypted(msg.sender, address(this), token1Amount);
     }
 
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
