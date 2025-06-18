@@ -17,7 +17,7 @@ import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 
 //FHE Imports
-import {FHE, InEuint128, euint128, InEbool, ebool} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {FHE, InEuint128, euint128, InEbool, ebool, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {IFHERC20} from "./interface/IFHERC20.sol";
 
 contract FHEMarketOrder is BaseHook {
@@ -38,6 +38,7 @@ contract FHEMarketOrder is BaseHook {
     using FHE for uint256;
 
     struct EpochInfo {
+        euint8 orderCount;
         euint128 totalLiquidity;
         mapping(address => euint128) liquidity;
     }
@@ -48,10 +49,15 @@ contract FHEMarketOrder is BaseHook {
     mapping(Epoch => EpochInfo) zeroForOneEpochs;
     mapping(Epoch => EpochInfo) oneForZeroEpochs;
 
-    euint128 immutable ZERO;
+    euint128 immutable ZERO_128;
+    euint8 immutable ONE_8;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
-        ZERO = FHE.asEuint128(0);
+        ZERO_128 = FHE.asEuint128(0);
+        ONE_8 = FHE.asEuint8(1);
+
+        FHE.allowThis(ZERO_128);
+        FHE.allowThis(ONE_8);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -108,7 +114,15 @@ contract FHEMarketOrder is BaseHook {
         euint128 zeroForOneUser = zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender];
         euint128 oneForZeroUser = oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender];
 
+        euint8 zeroForOneOrderCount = zeroForOneEpochs[zeroForOneEpoch].orderCount;
+        euint8 oneForZeroOrderCount = oneForZeroEpochs[oneForZeroEpoch].orderCount;
+
         // ----- Store Market Orders -----
+        zeroForOneEpochs[zeroForOneEpoch].orderCount = FHE.select(_zeroForOne, FHE.add(zeroForOneOrderCount, ONE_8), zeroForOneOrderCount);
+        oneForZeroEpochs[oneForZeroEpoch].orderCount = FHE.select(_zeroForOne, oneForZeroOrderCount, FHE.add(oneForZeroOrderCount, ONE_8));
+
+        FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].orderCount);
+        FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].orderCount);
     
         // - user liquidity
         zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender] = FHE.select(_zeroForOne, FHE.add(zeroForOneUser, _liquidity), zeroForOneUser);
@@ -131,8 +145,8 @@ contract FHEMarketOrder is BaseHook {
         FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].totalLiquidity);
         FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].totalLiquidity);
 
-        euint128 token0Amount = FHE.select(_zeroForOne, _liquidity, ZERO);
-        euint128 token1Amount = FHE.select(_zeroForOne, ZERO, _liquidity);
+        euint128 token0Amount = FHE.select(_zeroForOne, _liquidity, ZERO_128);
+        euint128 token1Amount = FHE.select(_zeroForOne, ZERO_128, _liquidity);
 
         // "send" both tokens, one amount is encrypted zero to obscure trade direction
         IFHERC20(Currency.unwrap(key.currency0)).transferFromEncrypted(msg.sender, address(this), token0Amount);
