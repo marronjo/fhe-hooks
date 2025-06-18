@@ -73,7 +73,7 @@ contract FHEMarketOrder is BaseHook {
     // NOTE: see IHooks.sol for function documentation
     // -----------------------------------------------
 
-    function _beforeInitialize(address sender, PoolKey calldata key, uint160 sqrtPriceX96)
+    function _beforeInitialize(address, PoolKey calldata key, uint160)
         internal
         override
         returns(bytes4)
