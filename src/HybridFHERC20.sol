@@ -31,6 +31,11 @@ contract HybridFHERC20 is ERC20, IFHERC20 {
         FHE.allowThis(ZERO);
     }
 
+    // -------- Verify Function --------
+    function isFherc20() external returns(bool) {
+        return true;
+    }
+
     // ----------- Public Mint Functions --------------------
     function mint(address user, uint256 amount) public {
         _mint(user, amount);

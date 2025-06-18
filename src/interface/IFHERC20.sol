@@ -8,6 +8,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 interface IFHERC20 is IERC20 {
+    // -------- Verify Function --------
+    function isFherc20() external returns(bool);
+
     // -------- Public Mint / Burn Functions --------
     function mint(address user, uint256 amount) external;
     function burn(address user, uint256 amount) external;
