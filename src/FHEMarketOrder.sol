@@ -7,16 +7,28 @@ import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {SwapParams, ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
+import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {EpochLibrary, Epoch} from "./lib/EpochLibrary.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 
 //FHE Imports
 import {FHE, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {IFHERC20} from "./interface/IFHERC20.sol";
 
 contract FHEMarketOrder is BaseHook {
+
+    error FHEMarketOrder__InvalidFHER20Token(address token);
+
     using PoolIdLibrary for PoolKey;
+    using EpochLibrary for Epoch;
+    using CurrencyLibrary for Currency;
+    using CurrencySettler for Currency;
+    using StateLibrary for IPoolManager;
 
     // NOTE: ---------------------------------------------------------
     // more natural syntax with euint operations by using FHE library
@@ -66,7 +78,19 @@ contract FHEMarketOrder is BaseHook {
         override
         returns(bytes4)
     {
+        verifyFHERC20Token(Currency.unwrap(key.currency0));
+        verifyFHERC20Token(Currency.unwrap(key.currency1));
         return (BaseHook.beforeInitialize.selector);
+    }
+
+    function verifyFHERC20Token(address token) private {
+        try IFHERC20(token).isFherc20() returns(bool isFherc20) {
+            if(!isFherc20){
+                revert FHEMarketOrder__InvalidFHER20Token(token);
+            }
+        } catch {
+            revert FHEMarketOrder__InvalidFHER20Token(token);
+        }
     }
 
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
