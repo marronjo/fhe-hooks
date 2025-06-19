@@ -15,6 +15,7 @@ import {EpochLibrary, Epoch} from "./lib/EpochLibrary.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Queue} from "./Queue.sol";
 
 //FHE Imports
@@ -48,6 +49,8 @@ contract FHEMarketOrder is BaseHook {
         Queue zeroForOne;
         Queue oneForZero;
     }
+
+    bytes internal constant ZERO_BYTES = bytes("");
 
     Epoch private zeroForOneEpoch = Epoch.wrap(1);
     Epoch private oneForZeroEpoch = Epoch.wrap(1);
@@ -194,6 +197,16 @@ contract FHEMarketOrder is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         // check if any decrypted orders ready to execute
+        (uint128 liquidityZ, bool executeZeroForOne) = _checkDecryptedOrders(key, true);
+        (uint128 liquidityO, bool executeOneForZero) = _checkDecryptedOrders(key, false);
+
+        if(executeZeroForOne){
+            _executeDecryptedOrders(key, liquidityZ, true);
+        }
+        if(executeOneForZero){
+            _executeDecryptedOrders(key, liquidityO, false);
+        }
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -210,6 +223,59 @@ contract FHEMarketOrder is BaseHook {
         FHE.select(executeOneForZero, _noOp(), _decryptBundledOrders(key, false, oneForZeroEpochs[oneForZeroEpoch].totalLiquidity));
 
         return (BaseHook.afterSwap.selector, 0);
+    }
+
+    function _checkDecryptedOrders(PoolKey calldata key, bool zeroForOne) private returns(uint128 liquidity, bool decrypted){
+        Queue queue = getPoolQueue(key, zeroForOne);
+        if(!queue.isEmpty()){
+            euint128 handle = queue.peek();
+            (liquidity, decrypted) = FHE.getDecryptResultSafe(handle);
+            if(decrypted){
+                queue.pop();
+            }
+        }
+    }
+
+    function _executeDecryptedOrders(PoolKey calldata key, uint128 decryptedLiquidity, bool zeroForOne) private {
+        BalanceDelta delta = _swapPoolManager(key, zeroForOne, -int256(uint256(decryptedLiquidity))); 
+        (uint128 amount0, uint128 amount1) = _settlePoolManagerBalances(key, delta, zeroForOne);
+        //store outputs
+    }
+
+    function _settlePoolManagerBalances(PoolKey calldata key, BalanceDelta delta, bool zeroForOne) private returns(uint128 amount0, uint128 amount1) {
+        if(zeroForOne){
+            amount0 = uint128(-delta.amount0()); // hook sends in -amount0 and receives +amount1
+            amount1 = uint128(delta.amount1());
+        } else {
+            amount0 = uint128(delta.amount0()); // hook sends in -amount1 and receives +amount0
+            amount1 = uint128(-delta.amount1());
+        }
+
+        // settle with pool manager the unencrypted FHERC20 tokens
+        // send in tokens owed to pool and take tokens owed to the hook
+        if (delta.amount0() < 0) {
+            key.currency0.settle(poolManager, address(this), uint256(amount0), false);
+            key.currency1.take(poolManager, address(this), uint256(amount1), false);
+
+            IFHERC20(Currency.unwrap(key.currency1)).wrap(address(this), amount1); //encrypted wrap newly received (taken) token1
+        } else {
+            key.currency1.settle(poolManager, address(this), uint256(amount1), false);
+            key.currency0.take(poolManager, address(this), uint256(amount0), false);
+
+            IFHERC20(Currency.unwrap(key.currency0)).wrap(address(this), amount0); //encrypted wrap newly received (taken) token0
+        }
+    }
+
+    function _swapPoolManager(PoolKey calldata key, bool zeroForOne, int256 amountSpecified) private returns(BalanceDelta delta) {
+        SwapParams memory params = SwapParams({
+            zeroForOne: zeroForOne,
+            amountSpecified: amountSpecified,
+            sqrtPriceLimitX96: zeroForOne ? 
+                        TickMath.MIN_SQRT_PRICE + 1 :   // increasing price of token 1, lower ratio
+                        TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        delta = poolManager.swap(key, params, ZERO_BYTES);
     }
 
     function _noOp() private view returns(euint128){
