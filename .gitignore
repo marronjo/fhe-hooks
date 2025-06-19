@@ -21,3 +21,5 @@ cache_hardhat/
 typechain-types/
 
 .vscode
+
+.DS_STORE
