@@ -15,6 +15,7 @@ import {EpochLibrary, Epoch} from "./lib/EpochLibrary.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {Queue} from "./Queue.sol";
 
 //FHE Imports
 import {FHE, InEuint128, euint128, InEbool, ebool, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
@@ -43,21 +44,34 @@ contract FHEMarketOrder is BaseHook {
         mapping(address => euint128) liquidity;
     }
 
+    struct QueueInfo {
+        Queue zeroForOne;
+        Queue oneForZero;
+    }
+
     Epoch private zeroForOneEpoch = Epoch.wrap(1);
     Epoch private oneForZeroEpoch = Epoch.wrap(1);
 
+    //TODO make mappings pool agnostic + rename
     mapping(Epoch => EpochInfo) zeroForOneEpochs;
     mapping(Epoch => EpochInfo) oneForZeroEpochs;
 
+    // each pool has 2 separate decryption queues
+    // one for each trade direction
+    mapping(PoolId key => QueueInfo queues) public poolQueue;
+
     euint128 immutable ZERO_128;
     euint8 immutable ONE_8;
+    euint8 immutable ORDER_THRESHOLD;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         ZERO_128 = FHE.asEuint128(0);
         ONE_8 = FHE.asEuint8(1);
+        ORDER_THRESHOLD = FHE.asEuint8(5);
 
         FHE.allowThis(ZERO_128);
         FHE.allowThis(ONE_8);
+        FHE.allowThis(ORDER_THRESHOLD);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -77,6 +91,23 @@ contract FHEMarketOrder is BaseHook {
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    //if queue does not exist for given pool and direction, deploy new queue
+    function getPoolQueue(PoolKey calldata key, bool zeroForOne) private returns(Queue queue){
+        QueueInfo storage queueInfo = poolQueue[key.toId()];
+
+        if(zeroForOne){
+            if(address(queueInfo.zeroForOne) == address(0)){
+                queueInfo.zeroForOne = new Queue();
+            }
+            queue = queueInfo.zeroForOne;
+        } else {
+            if(address(queueInfo.oneForZero) == address(0)){
+                queueInfo.oneForZero = new Queue();
+            }
+            queue = queueInfo.oneForZero;
+        }
     }
 
     // -----------------------------------------------
@@ -148,6 +179,10 @@ contract FHEMarketOrder is BaseHook {
         euint128 token0Amount = FHE.select(_zeroForOne, _liquidity, ZERO_128);
         euint128 token1Amount = FHE.select(_zeroForOne, ZERO_128, _liquidity);
 
+        // allow token contracts to compute using token amounts
+        FHE.allow(token0Amount, Currency.unwrap(key.currency0));
+        FHE.allow(token1Amount, Currency.unwrap(key.currency1));
+
         // "send" both tokens, one amount is encrypted zero to obscure trade direction
         IFHERC20(Currency.unwrap(key.currency0)).transferFromEncrypted(msg.sender, address(this), token0Amount);
         IFHERC20(Currency.unwrap(key.currency1)).transferFromEncrypted(msg.sender, address(this), token1Amount);
@@ -158,6 +193,7 @@ contract FHEMarketOrder is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        // check if any decrypted orders ready to execute
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -166,6 +202,33 @@ contract FHEMarketOrder is BaseHook {
         override
         returns (bytes4, int128)
     {
+        // check if order threshold is met
+        ebool executeZeroForOne = FHE.gte(zeroForOneEpochs[zeroForOneEpoch].orderCount, ORDER_THRESHOLD);
+        ebool executeOneForZero = FHE.gte(oneForZeroEpochs[oneForZeroEpoch].orderCount, ORDER_THRESHOLD);
+
+        FHE.select(executeZeroForOne, _noOp(), _decryptBundledOrders(key, true, zeroForOneEpochs[zeroForOneEpoch].totalLiquidity));
+        FHE.select(executeOneForZero, _noOp(), _decryptBundledOrders(key, false, oneForZeroEpochs[oneForZeroEpoch].totalLiquidity));
+
         return (BaseHook.afterSwap.selector, 0);
+    }
+
+    function _noOp() private view returns(euint128){
+        return ZERO_128;
+    }
+
+    function _decryptBundledOrders(PoolKey calldata key, bool zeroForOne, euint128 handle) private returns(euint128){
+        FHE.decrypt(handle);
+
+        //add handle to decryption queue
+        //increment epoch
+        if(zeroForOne){
+            getPoolQueue(key, zeroForOne).push(handle);
+            zeroForOneEpoch.unsafeIncrement();
+        } else {
+            getPoolQueue(key, zeroForOne).push(handle);
+            oneForZeroEpoch.unsafeIncrement();
+        }
+
+        return ZERO_128;
     }
 }
