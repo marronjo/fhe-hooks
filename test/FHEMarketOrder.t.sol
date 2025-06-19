@@ -17,11 +17,14 @@ import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
 import {SortTokens} from "./utils/SortTokens.sol";
+import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
 
 import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import {EasyPosm} from "./utils/EasyPosm.sol";
 import {Fixtures} from "./utils/Fixtures.sol";
+
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import {FHEMarketOrder} from "../src/FHEMarketOrder.sol";
 
@@ -122,6 +125,31 @@ contract MarketOrderTest is Test, Fixtures, CoFheTest {
         );
 
         vm.stopPrank();
+    }
+
+    function testInitializeFailed() public {
+        address flags = address(
+            uint160(
+                Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
+        );
+        bytes memory constructorArgs = abi.encode(manager); //Add all the necessary constructor arguments from the hook
+        deployCodeTo("FHEMarketOrder.sol:FHEMarketOrder", constructorArgs, flags);
+        FHEMarketOrder badHook = FHEMarketOrder(flags);
+
+        MockERC20 badToken0 = new MockERC20("Test0", "T0", 1);
+        MockERC20 badToken1 = new MockERC20("Test1", "T1", 1);
+
+        (Currency c0, Currency c1) = address(badToken0) > address(badToken1) ?
+        (Currency.wrap(address(badToken1)), Currency.wrap(address(badToken0))) :
+        (Currency.wrap(address(badToken0)), Currency.wrap(address(badToken1)));
+
+        // Create the pool
+        PoolKey memory badKey = PoolKey(c0, c1, 3000, 60, IHooks(badHook));
+        poolId = badKey.toId();
+
+        vm.expectRevert();
+        manager.initialize(badKey, SQRT_PRICE_1_1);
     }
 
     //
