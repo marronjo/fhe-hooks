@@ -11,18 +11,18 @@ import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {EpochLibrary, Epoch} from "./lib/EpochLibrary.sol";
+import {EpochLibrary, Epoch} from "../lib/EpochLibrary.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {Queue} from "./Queue.sol";
+import {Queue} from "../Queue.sol";
 
 //FHE Imports
 import {FHE, InEuint128, euint128, InEbool, ebool, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import {IFHERC20} from "./interface/IFHERC20.sol";
+import {IFHERC20} from "../interface/IFHERC20.sol";
 
-contract FHEMarketOrder is BaseHook {
+contract MarketOrder is BaseHook {
 
     error FHEMarketOrder__InvalidFHERC20Token(address token);
 

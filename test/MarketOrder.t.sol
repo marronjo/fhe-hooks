@@ -26,7 +26,7 @@ import {Fixtures} from "./utils/Fixtures.sol";
 
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {FHEMarketOrder} from "../src/FHEMarketOrder.sol";
+import {MarketOrder} from "../src/market-order/MarketOrder.sol";
 
 //FHE Imports
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
@@ -40,7 +40,7 @@ contract MarketOrderTest is Test, Fixtures, CoFheTest {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
 
-    FHEMarketOrder hook;
+    MarketOrder hook;
     PoolId poolId;
 
     HybridFHERC20 fheToken0;
@@ -88,8 +88,8 @@ contract MarketOrderTest is Test, Fixtures, CoFheTest {
             ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
         bytes memory constructorArgs = abi.encode(manager); //Add all the necessary constructor arguments from the hook
-        deployCodeTo("FHEMarketOrder.sol:FHEMarketOrder", constructorArgs, flags);
-        hook = FHEMarketOrder(flags);
+        deployCodeTo("MarketOrder.sol:MarketOrder", constructorArgs, flags);
+        hook = MarketOrder(flags);
 
         vm.label(address(hook), "hook");
         vm.label(address(this), "test");
@@ -134,8 +134,8 @@ contract MarketOrderTest is Test, Fixtures, CoFheTest {
             ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
         bytes memory constructorArgs = abi.encode(manager); //Add all the necessary constructor arguments from the hook
-        deployCodeTo("FHEMarketOrder.sol:FHEMarketOrder", constructorArgs, flags);
-        FHEMarketOrder badHook = FHEMarketOrder(flags);
+        deployCodeTo("MarketOrder.sol:MarketOrder", constructorArgs, flags);
+        MarketOrder badHook = MarketOrder(flags);
 
         MockERC20 badToken0 = new MockERC20("Test0", "T0", 1);
         MockERC20 badToken1 = new MockERC20("Test1", "T1", 1);
