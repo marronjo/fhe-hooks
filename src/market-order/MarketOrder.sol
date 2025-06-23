@@ -24,7 +24,7 @@ import {IFHERC20} from "../interface/IFHERC20.sol";
 
 contract MarketOrder is BaseHook {
 
-    error FHEMarketOrder__InvalidFHERC20Token(address token);
+    error MarketOrder__InvalidFHERC20Token(address token);
 
     using PoolIdLibrary for PoolKey;
     using EpochLibrary for Epoch;
@@ -131,10 +131,10 @@ contract MarketOrder is BaseHook {
     function verifyFHERC20Token(address token) private pure {
         try IFHERC20(token).isFherc20() returns(bool isFherc20) {
             if(!isFherc20){
-                revert FHEMarketOrder__InvalidFHERC20Token(token);
+                revert MarketOrder__InvalidFHERC20Token(token);
             }
         } catch {
-            revert FHEMarketOrder__InvalidFHERC20Token(token);
+            revert MarketOrder__InvalidFHERC20Token(token);
         }
     }
 
