@@ -26,6 +26,8 @@ contract MarketOrder is BaseHook {
 
     error MarketOrder__InvalidFHERC20Token(address token);
 
+    event MarketOrderExecuted(uint128 amount0, uint128 amount1);
+
     using PoolIdLibrary for PoolKey;
     using EpochLibrary for Epoch;
     using CurrencyLibrary for Currency;
@@ -137,17 +139,14 @@ contract MarketOrder is BaseHook {
     }
 
     function placeMarketOrder(PoolKey calldata key, bool zeroForOne, InEuint128 calldata liquidity) external {
-        ebool _zeroForOne = FHE.asEbool(zeroForOne);
         euint128 _liquidity = FHE.asEuint128(liquidity);
-
-        euint128 totalLiquidity;
-
+        address token;
 
         if(zeroForOne){
             zeroForOneEpochs[zeroForOneEpoch].orderCount++;
 
             euint128 zeroForOneUser = zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender];
-            zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender] = FHE.select(_zeroForOne, FHE.add(zeroForOneUser, _liquidity), zeroForOneUser);
+            zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender] = FHE.add(zeroForOneUser, _liquidity);
             
             FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender]);
             FHE.allow(zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender], msg.sender);
@@ -157,13 +156,12 @@ contract MarketOrder is BaseHook {
             zeroForOneEpochs[zeroForOneEpoch].totalLiquidity = FHE.add(zeroForOneLiquidity, _liquidity);
             FHE.allowThis(zeroForOneEpochs[zeroForOneEpoch].totalLiquidity);
 
-            FHE.allow(_liquidity, Currency.unwrap(key.currency0));
-            IFHERC20(Currency.unwrap(key.currency0)).transferFromEncrypted(msg.sender, address(this), _liquidity);
+            token = Currency.unwrap(key.currency0);
         } else {
             oneForZeroEpochs[oneForZeroEpoch].orderCount++;
 
             euint128 oneForZeroUser = oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender];
-            oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender] = FHE.select(_zeroForOne, oneForZeroUser, FHE.add(oneForZeroUser, _liquidity)); 
+            oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender] = FHE.add(oneForZeroUser, _liquidity);
 
             FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender]);
             FHE.allow(oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender], msg.sender);
@@ -173,9 +171,11 @@ contract MarketOrder is BaseHook {
             oneForZeroEpochs[oneForZeroEpoch].totalLiquidity = FHE.add(oneForZeroLiquidity, _liquidity);
             FHE.allowThis(oneForZeroEpochs[oneForZeroEpoch].totalLiquidity);
 
-            FHE.allow(_liquidity, Currency.unwrap(key.currency1));
-            IFHERC20(Currency.unwrap(key.currency1)).transferFromEncrypted(msg.sender, address(this), _liquidity);
+            token = Currency.unwrap(key.currency1);
         }
+
+        FHE.allow(_liquidity, token);
+        IFHERC20(token).transferFromEncrypted(msg.sender, address(this), _liquidity);
     }
 
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
@@ -227,7 +227,8 @@ contract MarketOrder is BaseHook {
     function _executeDecryptedOrders(PoolKey calldata key, uint128 decryptedLiquidity, bool zeroForOne) private {
         BalanceDelta delta = _swapPoolManager(key, zeroForOne, -int256(uint256(decryptedLiquidity))); 
         (uint128 amount0, uint128 amount1) = _settlePoolManagerBalances(key, delta, zeroForOne);
-        //store outputs
+        //store outputs ...
+        emit MarketOrderExecuted(amount0, amount1);
     }
 
     function _settlePoolManagerBalances(PoolKey calldata key, BalanceDelta delta, bool zeroForOne) private returns(uint128 amount0, uint128 amount1) {
@@ -264,10 +265,6 @@ contract MarketOrder is BaseHook {
         });
 
         delta = poolManager.swap(key, params, ZERO_BYTES);
-    }
-
-    function _noOp() private view returns(euint128){
-        return ZERO_128;
     }
 
     function _decryptBundledOrders(PoolKey calldata key, bool zeroForOne, euint128 handle) private returns(euint128){
