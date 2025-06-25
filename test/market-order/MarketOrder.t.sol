@@ -16,23 +16,23 @@ import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
-import {SortTokens} from "./utils/SortTokens.sol";
+import {SortTokens} from "../utils/SortTokens.sol";
 import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
 
 import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
-import {EasyPosm} from "./utils/EasyPosm.sol";
-import {Fixtures} from "./utils/Fixtures.sol";
+import {EasyPosm} from "../utils/EasyPosm.sol";
+import {Fixtures} from "../utils/Fixtures.sol";
 
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
-import {MarketOrder} from "../src/market-order/MarketOrder.sol";
+import {MarketOrder} from "../../src/market-order/MarketOrder.sol";
 
 //FHE Imports
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {CoFheTest} from "@fhenixprotocol/cofhe-mock-contracts/CoFheTest.sol";
-import {HybridFHERC20} from "../src/HybridFHERC20.sol";
-import {IFHERC20} from "../src/interface/IFHERC20.sol";
+import {HybridFHERC20} from "../../src/HybridFHERC20.sol";
+import {IFHERC20} from "../../src/interface/IFHERC20.sol";
 
 contract MarketOrderTest is Test, Fixtures, CoFheTest {
     using EasyPosm for IPositionManager;
