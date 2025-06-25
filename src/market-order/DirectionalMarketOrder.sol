@@ -58,8 +58,8 @@ contract DirectionalMarketOrder is BaseHook {
     Epoch private oneForZeroEpoch = Epoch.wrap(1);
 
     //TODO make mappings pool agnostic + rename
-    mapping(Epoch => EpochInfo) zeroForOneEpochs;
-    mapping(Epoch => EpochInfo) oneForZeroEpochs;
+    mapping(Epoch => EpochInfo) private zeroForOneEpochs;
+    mapping(Epoch => EpochInfo) private oneForZeroEpochs;
 
     // each pool has 2 separate decryption queues
     // one for each trade direction
@@ -111,6 +111,15 @@ contract DirectionalMarketOrder is BaseHook {
             }
             queue = queueInfo.oneForZero;
         }
+    }
+
+    function getCurrentEpoch(bool zeroForOne) public view returns(uint8 orderCount, euint128 totalLiquidity){
+        orderCount = zeroForOne ? zeroForOneEpochs[zeroForOneEpoch].orderCount : oneForZeroEpochs[oneForZeroEpoch].orderCount;
+        totalLiquidity = zeroForOne ? zeroForOneEpochs[zeroForOneEpoch].totalLiquidity : oneForZeroEpochs[oneForZeroEpoch].totalLiquidity;
+    }
+
+    function getLiquidityCurrentEpoch(bool zeroForOne) public view returns(euint128){
+        return zeroForOne ? zeroForOneEpochs[zeroForOneEpoch].liquidity[msg.sender] : oneForZeroEpochs[oneForZeroEpoch].liquidity[msg.sender];
     }
 
     // -----------------------------------------------

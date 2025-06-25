@@ -54,6 +54,10 @@ contract DirectionalMarketOrderTest is Test, Fixtures, CoFheTest {
     int24 tickLower;
     int24 tickUpper;
 
+    uint128 private constant LIQUIDITY_1E8 = 1e8;
+    bool private constant ZERO_FOR_ONE = true;
+    bool private constant ONE_FOR_ZERO = false;
+
     address private user = makeAddr("user");
 
     function setUp() public {
@@ -163,24 +167,70 @@ contract DirectionalMarketOrderTest is Test, Fixtures, CoFheTest {
         manager.initialize(badKey, SQRT_PRICE_1_1);
     }
 
-    function test_placeMarketOrderCorrectBalanceTransfers() public {
-        uint128 _liquidity = 1e10;
-        bool zeroForOne = true;
-
+    function test_placeMarketOrderCorrectBalanceTransfersZeroForOne() public {
         (
             euint128 userBefore0,
-            euint128 hookBefore0, 
-            euint128 userBefore1, 
-            euint128 hookBefore1 
+            euint128 hookBefore0,
+            euint128 userBefore1,
+            euint128 hookBefore1
         ) = _getAllBalances();
 
         vm.startPrank(user);
-        InEuint128 memory liquidity = createInEuint128(_liquidity, user);
-        hook.placeMarketOrder(key, zeroForOne, liquidity);
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, user);
+        hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
         vm.stopPrank();
 
-        _assertTokenBalanceChange(fheToken0, user, hookAddr, _liquidity, userBefore0, hookBefore0);
+        _assertTokenBalanceChange(fheToken0, user, hookAddr, LIQUIDITY_1E8, userBefore0, hookBefore0);
         _assertTokenBalanceEqual(fheToken1, user, hookAddr, userBefore1, hookBefore1);
+    }
+
+    function test_placeMarketOrderCorrectBalanceTransfersOneForZero() public {
+        (
+            euint128 userBefore0,
+            euint128 hookBefore0,
+            euint128 userBefore1,
+            euint128 hookBefore1
+        ) = _getAllBalances();
+
+        vm.startPrank(user);
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, user);
+        hook.placeMarketOrder(key, ONE_FOR_ZERO, liquidity);
+        vm.stopPrank();
+
+        _assertTokenBalanceChange(fheToken1, user, hookAddr, LIQUIDITY_1E8, userBefore0, hookBefore0);
+        _assertTokenBalanceEqual(fheToken0, user, hookAddr, userBefore1, hookBefore1);
+    }
+
+    function test_placeMarketOrderCorrectStorageOneForZero() public {
+        vm.startPrank(user);
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, user);
+        hook.placeMarketOrder(key, ONE_FOR_ZERO, liquidity);
+        vm.stopPrank();
+
+        (uint8 orderCount, euint128 totalLiquidity) = hook.getCurrentEpoch(ONE_FOR_ZERO);
+
+        vm.prank(user);
+        euint128 userLiquidity = hook.getLiquidityCurrentEpoch(ONE_FOR_ZERO);
+
+        assertEq(orderCount, 1);
+        assertHashValue(totalLiquidity, LIQUIDITY_1E8);
+        assertHashValue(userLiquidity, LIQUIDITY_1E8);
+    }
+
+    function test_placeMarketOrderCorrectStorageZeroForOne() public {
+        vm.startPrank(user);
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, user);
+        hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
+        vm.stopPrank();
+
+        (uint8 orderCount, euint128 totalLiquidity) = hook.getCurrentEpoch(ZERO_FOR_ONE);
+
+        vm.prank(user);
+        euint128 userLiquidity = hook.getLiquidityCurrentEpoch(ZERO_FOR_ONE);
+
+        assertEq(orderCount, 1);
+        assertHashValue(totalLiquidity, LIQUIDITY_1E8);
+        assertHashValue(userLiquidity, LIQUIDITY_1E8);
     }
 
     // ----------------------------------
