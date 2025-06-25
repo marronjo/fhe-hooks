@@ -22,7 +22,7 @@ import {Queue} from "../Queue.sol";
 import {FHE, InEuint128, euint128, InEbool, ebool, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {IFHERC20} from "../interface/IFHERC20.sol";
 
-contract MarketOrder is BaseHook {
+contract DirectionalMarketOrder is BaseHook {
 
     error MarketOrder__InvalidFHERC20Token(address token);
 
