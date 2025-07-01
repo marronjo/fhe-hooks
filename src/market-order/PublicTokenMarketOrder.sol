@@ -46,11 +46,11 @@ contract PublicTokenMarketOrder is BaseHook {
 
     bytes internal constant ZERO_BYTES = bytes("");
 
-    mapping(uint256 handle => address user) userOrders;
+    mapping(PoolId key => mapping(uint256 handle => address user)) private userOrders;
 
     // each pool has 2 separate decryption queues
     // one for each trade direction
-    mapping(PoolId key => QueueInfo queues) public poolQueue;
+    mapping(PoolId key => QueueInfo queues) private poolQueue;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
@@ -74,7 +74,7 @@ contract PublicTokenMarketOrder is BaseHook {
     }
 
     //if queue does not exist for given pool and direction, deploy new queue
-    function getPoolQueue(PoolKey calldata key, bool zeroForOne) private returns(Queue queue){
+    function getPoolQueue(PoolKey calldata key, bool zeroForOne) public returns(Queue queue){
         QueueInfo storage queueInfo = poolQueue[key.toId()];
 
         if(zeroForOne){
@@ -90,6 +90,10 @@ contract PublicTokenMarketOrder is BaseHook {
         }
     }
 
+    function getUserOrder(PoolKey calldata key, uint256 handle) public returns(address){
+        return userOrders[key.toId()][handle];
+    }
+
     // -----------------------------------------------
     // NOTE: see IHooks.sol for function documentation
     // -----------------------------------------------
@@ -98,7 +102,7 @@ contract PublicTokenMarketOrder is BaseHook {
         euint128 _liquidity = FHE.asEuint128(liquidity);
         uint256 handle = euint128.unwrap(_liquidity);
 
-        userOrders[handle] = msg.sender;
+        userOrders[key.toId()][handle] = msg.sender;
         FHE.decrypt(_liquidity);
 
         getPoolQueue(key, zeroForOne).push(_liquidity);
@@ -133,7 +137,7 @@ contract PublicTokenMarketOrder is BaseHook {
     //What to do if transfer fails ? just skip or delete user order entirely ??
     //This will affect queue consistency eother way, could process intermedite orders and re-add to start of queue
     function _depositUserTokens(PoolKey calldata key, euint128 handle, uint128 amount, bool zeroForOne) private returns(address user){
-        user = userOrders[euint128.unwrap(handle)];
+        user = userOrders[key.toId()][euint128.unwrap(handle)];
         address token = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
         IERC20(token).safeTransferFrom(user, address(this), uint256(amount));
     }
