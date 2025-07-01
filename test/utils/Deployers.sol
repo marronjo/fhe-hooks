@@ -120,7 +120,7 @@ contract Deployers is Test {
     }
 
     function mintAndApproveCurrency() internal returns (Currency currency) {
-        MockERC20 token = deployToken(2 ** 255);
+        MockERC20 token = deployToken(2 ** 200);
 
         address[9] memory toApprove = [
             address(swapRouter),
@@ -142,7 +142,7 @@ contract Deployers is Test {
     }
 
     function deployAndMint2Currencies() internal returns (Currency, Currency) {
-        MockERC20[] memory tokens = deployTokens(2, 2 ** 255);
+        MockERC20[] memory tokens = deployTokens(2, 2 ** 200);
         return SortTokens.sort(address(tokens[0]), address(tokens[1]));
     }
 
