@@ -24,6 +24,7 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {EasyPosm} from "../utils/EasyPosm.sol";
 import {Fixtures} from "../utils/Fixtures.sol";
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import {PublicTokenMarketOrder} from "../../src/market-order/PublicTokenMarketOrder.sol";
@@ -32,7 +33,7 @@ import {PublicTokenMarketOrder} from "../../src/market-order/PublicTokenMarketOr
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {CoFheTest} from "@fhenixprotocol/cofhe-mock-contracts/CoFheTest.sol";
 
-contract PublicTokennMarketOrderTest is Test, Fixtures, CoFheTest {
+contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
     using EasyPosm for IPositionManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -42,8 +43,8 @@ contract PublicTokennMarketOrderTest is Test, Fixtures, CoFheTest {
     address hookAddr;
     PoolId poolId;
 
-    MockERC20 token0;
-    MockERC20 token1;
+    IERC20 token0;
+    IERC20 token1;
 
     uint256 tokenId;
     int24 tickLower;
@@ -53,17 +54,16 @@ contract PublicTokennMarketOrderTest is Test, Fixtures, CoFheTest {
     bool private constant ZERO_FOR_ONE = true;
     bool private constant ONE_FOR_ZERO = false;
 
-    address private user = makeAddr("user");
-
     function setUp() public {
 
-        vm.label(user, "user");
         vm.label(address(this), "test");
 
         // creates the pool manager, utility routers, and test tokens
         deployFreshManagerAndRouters();
 
         deployMintAndApprove2Currencies();
+
+        (token0, token1) = (IERC20(Currency.unwrap(currency0)), IERC20(Currency.unwrap(currency1)));
 
         deployAndApprovePosm(manager);
 
@@ -113,8 +113,40 @@ contract PublicTokennMarketOrderTest is Test, Fixtures, CoFheTest {
         );
     }
 
-    function test_placeMarketOrder() public {
+    function test_placeMarketOrderTokenBalances() public {
+        (uint256 t0, uint256 t1, uint256 h0, uint256 h1) = _getBalances();
+
         InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, address(this));
         hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
+
+        (uint256 t2, uint256 t3, uint256 h2, uint256 h3) = _getBalances();
+
+        assertEq(t0, t2);
+        assertEq(t1, t3);
+        assertEq(h0, h2);
+        assertEq(h1, h3);
+    }
+
+    function test_placeMarketOrderQueueContainsOrder() public {
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, address(this));
+        hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
+
+        euint128 top = hook.getPoolQueue(key, ZERO_FOR_ONE).peek();
+        assertHashValue(top, LIQUIDITY_1E8);
+
+        address user = hook.getUserOrder(key, euint128.unwrap(top));
+        assertEq(user, address(this));
+    }
+
+    // ---------------------------
+    //
+    //      Helper Functions
+    //
+    // ---------------------------
+    function _getBalances() private returns(uint256 t0, uint256 t1, uint256 h0, uint256 h1) {
+        t0 = token0.balanceOf(address(this));
+        t1 = token1.balanceOf(address(this));
+        h0 = token0.balanceOf(hookAddr);
+        h1 = token1.balanceOf(hookAddr);
     }
 }
