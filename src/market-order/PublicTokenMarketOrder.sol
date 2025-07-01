@@ -22,7 +22,7 @@ import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 //FHE Imports
 import {FHE, InEuint128, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
-contract DirectionalMarketOrder is BaseHook {
+contract PublicTokenMarketOrder is BaseHook {
     event MarketOrderExecuted(uint128 amount0, uint128 amount1);
 
     using SafeERC20 for IERC20;
