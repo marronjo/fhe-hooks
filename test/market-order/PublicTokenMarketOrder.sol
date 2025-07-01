@@ -18,6 +18,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
 import {SortTokens} from "../utils/SortTokens.sol";
 import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
+import {SwapParams, ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
 import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
@@ -55,9 +56,6 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
     bool private constant ONE_FOR_ZERO = false;
 
     function setUp() public {
-
-        vm.label(address(this), "test");
-
         // creates the pool manager, utility routers, and test tokens
         deployFreshManagerAndRouters();
 
@@ -81,6 +79,8 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
 
         vm.label(hookAddr, "hook");
         vm.label(address(this), "test");
+        vm.label(address(token0), "token0");
+        vm.label(address(token1), "token1");
 
         // Create the pool
         key = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
@@ -111,9 +111,12 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
             block.timestamp,
             ZERO_BYTES
         );
+
+        token0.approve(hookAddr, type(uint256).max);
+        token1.approve(hookAddr, type(uint256).max);
     }
 
-    function test_placeMarketOrderTokenBalances() public {
+    function test_placeOrderTokenBalances() public {
         (uint256 t0, uint256 t1, uint256 h0, uint256 h1) = _getBalances();
 
         InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, address(this));
@@ -127,7 +130,7 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
         assertEq(h1, h3);
     }
 
-    function test_placeMarketOrderQueueContainsOrder() public {
+    function test_QueueContainsOrder() public {
         InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, address(this));
         hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
 
@@ -136,6 +139,22 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
 
         address user = hook.getUserOrder(key, euint128.unwrap(top));
         assertEq(user, address(this));
+    }
+
+    function test_BeforeSwapOrderExecutes() public {
+        (uint256 t0, uint256 t1,,) = _getBalances();
+
+        InEuint128 memory liquidity = createInEuint128(LIQUIDITY_1E8, address(this));
+        hook.placeMarketOrder(key, ZERO_FOR_ONE, liquidity);
+
+        vm.warp(block.timestamp + 11); //ensure decryption is finished
+
+        _swap(ONE_FOR_ZERO, 1e5);  //perform swap e.g. trigger beforeSwap hook
+
+        (uint256 t2, uint256 t3,,) = _getBalances();
+
+        assertGt(t0, t2);   // user balance t0 decreases
+        assertLt(t1, t3);   // user balance t1 increases
     }
 
     // ---------------------------
@@ -148,5 +167,18 @@ contract PublicTokenMarketOrderTest is Test, Fixtures, CoFheTest {
         t1 = token1.balanceOf(address(this));
         h0 = token0.balanceOf(hookAddr);
         h1 = token1.balanceOf(hookAddr);
+    }
+
+    function _swap(bool zeroForOne, int256 amount) private returns(BalanceDelta){
+        SwapParams memory params = SwapParams({
+            zeroForOne: zeroForOne,
+            amountSpecified: amount,
+            sqrtPriceLimitX96: zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+        });
+        return swapRouter.swap(key, params, _defaultTestSettings(), ZERO_BYTES);
+    }
+
+    function _defaultTestSettings() internal pure returns (PoolSwapTest.TestSettings memory testSetting) {
+        return PoolSwapTest.TestSettings({takeClaims: true, settleUsingBurn: false});
     }
 }
