@@ -90,7 +90,7 @@ contract PublicTokenMarketOrder is BaseHook {
         }
     }
 
-    function getUserOrder(PoolKey calldata key, uint256 handle) public returns(address){
+    function getUserOrder(PoolKey calldata key, uint256 handle) public view returns(address){
         return userOrders[key.toId()][handle];
     }
 
