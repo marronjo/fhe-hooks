@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Script.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {Actions} from "v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
@@ -29,15 +30,15 @@ contract CreatePoolAndAddLiquidityScript is Script, Constants, Config {
     uint160 startingPrice = 79228162514264337593543950336; // floor(sqrt(1) * 2^96)
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 1e18;
-    uint256 public token1Amount = 1e18;
+    uint256 public token0Amount = 1e30;
+    uint256 public token1Amount = 1e30;
 
     // range of the position
     int24 tickLower = -600; // must be a multiple of tickSpacing
     int24 tickUpper = 600;
     /////////////////////////////////////
 
-    function run() external {
+    function run() external returns(PoolId p) {
         // tokens should be sorted
         PoolKey memory pool = PoolKey({
             currency0: currency0,
@@ -48,7 +49,13 @@ contract CreatePoolAndAddLiquidityScript is Script, Constants, Config {
         });
         bytes memory hookData = new bytes(0);
 
-        // --------------------------------- //
+        p = pool.toId();
+
+        // vm.broadcast();
+        // token0.mint(msg.sender, 1e50);
+
+        // vm.broadcast();
+        // token1.mint(msg.sender, 1e50);
 
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
@@ -64,7 +71,7 @@ contract CreatePoolAndAddLiquidityScript is Script, Constants, Config {
         uint256 amount1Max = token1Amount + 1 wei;
 
         (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
+            _mintLiquidityParams(pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, msg.sender, hookData);
 
         // multicall parameters
         bytes[] memory params = new bytes[](2);
