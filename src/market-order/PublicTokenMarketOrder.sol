@@ -98,6 +98,7 @@ contract PublicTokenMarketOrder is BaseHook {
     // NOTE: see IHooks.sol for function documentation
     // -----------------------------------------------
 
+    //TODO ... ADD APPROVALS!!!
     function placeMarketOrder(PoolKey calldata key, bool zeroForOne, InEuint128 calldata liquidity) external {
         euint128 _liquidity = FHE.asEuint128(liquidity);
         uint256 handle = euint128.unwrap(_liquidity);
