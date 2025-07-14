@@ -278,14 +278,12 @@ contract DirectionalMarketOrder is BaseHook {
 
     function _decryptBundledOrders(PoolKey calldata key, bool zeroForOne, euint128 handle) private returns(euint128){
         FHE.decrypt(handle);
+        getPoolQueue(key, zeroForOne).push(handle);
 
-        //add handle to decryption queue
         //increment epoch
         if(zeroForOne){
-            getPoolQueue(key, zeroForOne).push(handle);
             zeroForOneEpoch.unsafeIncrement();
         } else {
-            getPoolQueue(key, zeroForOne).push(handle);
             oneForZeroEpoch.unsafeIncrement();
         }
 
