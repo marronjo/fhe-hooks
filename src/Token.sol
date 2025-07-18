@@ -8,7 +8,11 @@ contract Token is ERC20, Ownable {
     constructor(string memory name, string memory symbol) 
     ERC20(name, symbol) Ownable(msg.sender) {}
 
-    function mint(address account, uint256 amount) external onlyOwner {
-        _mint(account, amount);
+    function mint(uint256 amount) external {
+        _mint(msg.sender, amount);
+    }
+
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
     }
 }

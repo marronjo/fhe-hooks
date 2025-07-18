@@ -13,8 +13,8 @@ contract TokenScript is Script {
         t1 = new Token("Cipher", "CPH"); 
 
         //stack up the bagsss
-        t0.mint(msg.sender, 1e50);
-        t1.mint(msg.sender, 1e50);
+        t0.mint(1e50);
+        t1.mint(1e50);
         
         vm.stopBroadcast();
     }
